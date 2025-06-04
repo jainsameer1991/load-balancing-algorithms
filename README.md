@@ -12,14 +12,17 @@ This project demonstrates several classic and modern load balancing algorithms, 
    - Supports server weights.
 3. **Hashing**
    - Uses a hash of a key (e.g., client IP or URL) to consistently route requests to the same server.
-4. **Consistent Hashing**
+4. **Consistent Hashing (Ring Hashing)**
    - Minimizes re-routing when servers are added/removed.
-   - Implements Ring Hashing (and mentions Maglev).
+   - Implements classic ring-based consistent hashing.
+5. **Maglev Hashing**
+   - Implements Google's Maglev consistent hashing algorithm for fast, minimal-disruption lookups.
+   - Provides better distribution and minimal remapping when servers change, using a permutation-based lookup table.
 
 ## Features
 - Add/remove servers dynamically.
 - Simulate requests with custom keys.
-- Select and test different load balancing algorithms.
+- Select and test different load balancing algorithms (including both Ring Hashing and Maglev Hashing).
 - Visualize which server handles each request.
 
 ## Tech Stack
