@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Load Balancing Algorithms</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        body { margin: 2em; }
+        .server-list { margin-bottom: 1em; }
+        .server-item { display: flex; align-items: center; margin-bottom: 0.5em; }
+        .server-item span { flex: 1; }
+        .result { margin-top: 2em; font-size: 1.2em; color: #2a7a2a; }
+        .flash {
+            animation: flash-bg 1s;
+        }
+        @keyframes flash-bg {
+            0% { box-shadow: 0 0 0 0 #28a74588; }
+            50% { box-shadow: 0 0 16px 8px #28a74588; }
+            100% { box-shadow: 0 0 0 0 #28a74500; }
+        }
+        .arrow-animate {
+            stroke-dasharray: 100;
+            stroke-dashoffset: 100;
+            animation: draw-arrow 0.7s forwards;
+        }
+        @keyframes draw-arrow {
+            to { stroke-dashoffset: 0; }
+        }
+    </style>
+    <script>
+        function updateFields() {
+            var strategy = document.getElementById('strategy').value;
+            document.getElementById('weights-group').style.display = strategy === 'WeightedRoundRobin' ? 'block' : 'none';
+            document.getElementById('connections-group').style.display = strategy === 'LeastConnections' ? 'block' : 'none';
+            document.getElementById('key-group').style.display = (strategy === 'Hashing' || strategy === 'ConsistentHashing' || strategy === 'MaglevHashing') ? 'block' : 'none';
+        }
+        window.onload = updateFields;
+    </script>
+</head>
+<body class="container">
+<h1 class="mb-4">Load Balancing Algorithms Demo</h1>
+
+<div class="mb-4">
+    <form th:action="@{/add-server}" method="post" class="row g-2 align-items-center">
+        <div class="col-auto">
+            <input type="text" class="form-control" name="server" placeholder="Add server (e.g. server1)" required />
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-primary">Add Server</button>
+        </div>
+    </form>
+    <div class="server-list mt-3">
+        <h5>Current Servers:</h5>
+        <!-- Visualization: Server pills with tooltips and animation -->
+        <div class="mb-2">
+            <span th:each="s,iter : ${servers}"
+                  th:text="${s}"
+                  th:classappend="'badge rounded-pill me-2 server-pill ' + (${selectedServer} == s ? 'bg-success flash' : 'bg-primary')"
+                  data-bs-toggle="tooltip"
+                  th:title="'Server: ' + ${s} + ' (Index: ' + ${iter.index} +
+                    (${weights} != null ? ', Weight: ' + ${weights[iter.index]} : '') +
+                    (${connections} != null ? ', Connections: ' + ${connections[iter.index]} : '') + ')'"
+                  style="font-size:1em; padding:0.7em 1.2em; cursor:pointer;">
+            </span>
+        </div>
+        <ul class="list-group">
+            <li th:each="s : ${servers}" class="list-group-item server-item">
+                <span th:text="${s}"></span>
+                <form th:action="@{/remove-server}" method="post" style="display:inline;">
+                    <input type="hidden" name="server" th:value="${s}" />
+                    <button type="submit" class="btn btn-danger btn-sm ms-2">Remove</button>
+                </form>
+            </li>
+        </ul>
+        <!-- Consistent Hashing/Maglev Ring Visualization -->
+        <div th:if="${currentStrategy == 'ConsistentHashing' or currentStrategy == 'MaglevHashing'}" class="mt-4">
+            <h6>Hash Ring Visualization:</h6>
+            <svg width="260" height="260" viewBox="0 0 260 260">
+                <circle cx="130" cy="130" r="100" fill="none" stroke="#bbb" stroke-width="2" />
+                <g th:each="s,iter : ${servers}">
+                    <g th:with="angle=${(iter.index * 360.0) / servers.size()}, rad=${(angle * 3.14159) / 180}, x=${130 + 100 * T(java.lang.Math).cos(rad)}, y=${130 + 100 * T(java.lang.Math).sin(rad)}">
+                        <circle th:attr="cx=${x}, cy=${y}, r=18" data-bs-toggle="tooltip"
+                                th:title="'Server: ' + ${s} + ' (Index: ' + ${iter.index} + ')'"
+                                th:attrappend="fill=(${selectedServer} == s ? '#28a745' : '#0d6efd')" class="ring-node" />
+                        <text th:attr="x=${x}, y=${y+5}" text-anchor="middle" font-size="13" fill="#fff" th:text="${s}"></text>
+                    </g>
+                </g>
+                <!-- Pointer for selected server -->
+                <g th:if="${selectedServer != null}">
+                    <g th:with="selIdx=${servers.indexOf(selectedServer)}, angle=${(selIdx * 360.0) / servers.size()}, rad=${(angle * 3.14159) / 180}, px=${130 + 70 * T(java.lang.Math).cos(rad)}, py=${130 + 70 * T(java.lang.Math).sin(rad)}">
+                        <line x1="130" y1="130" th:attr="x2=${px}, y2=${py}" stroke="#28a745" stroke-width="3" marker-end="url(#arrow)" class="arrow-animate" />
+                    </g>
+                </g>
+                <!-- Hash/key position as a dot -->
+                <g th:if="${hashPosition != null}">
+                    <g th:with="rad=${(hashPosition * 3.14159) / 180}, x=${130 + 100 * T(java.lang.Math).cos(rad)}, y=${130 + 100 * T(java.lang.Math).sin(rad)}">
+                        <circle th:attr="cx=${x}, cy=${y}, r=7" fill="#ffc107" stroke="#333" stroke-width="2" class="hash-dot" />
+                    </g>
+                </g>
+                <defs>
+                    <marker id="arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto" markerUnits="strokeWidth">
+                        <path d="M0,0 L10,5 L0,10 L3,5 Z" fill="#28a745" />
+                    </marker>
+                </defs>
+            </svg>
+            <!-- Legend -->
+            <div class="mt-2 small">
+                <span class="badge bg-primary">Server</span>
+                <span class="badge bg-success">Selected Server</span>
+                <span class="badge bg-warning text-dark">Hash/Key Position</span>
+                <span style="margin-left:1em; color:#28a745;">&#8594; Arrow: Request mapping</span>
+            </div>
+        </div>
+        <!-- Step-by-step explanation -->
+        <div th:if="${explanation}" class="alert alert-info mt-3" th:text="${explanation}"></div>
+    </div>
+</div>
+
+<form th:action="@{/set-strategy}" method="post" class="mb-4">
+    <div class="mb-3">
+        <label for="strategy" class="form-label">Select Algorithm:</label>
+        <select id="strategy" name="strategy" class="form-select" onchange="this.form.submit(); updateFields();" th:value="${currentStrategy}">
+            <option th:each="s : ${strategies}" th:value="${s}" th:text="${s}" th:selected="${s == currentStrategy}"></option>
+        </select>
+    </div>
+</form>
+
+<form th:action="@{/select-server}" method="post" class="mb-4">
+    <div class="mb-3" id="weights-group" style="display:none;">
+        <label for="weights" class="form-label">Weights (comma separated, e.g. 2,1,3):</label>
+        <input type="text" class="form-control" id="weights" name="weights" placeholder="e.g. 2,1,3" />
+    </div>
+    <div class="mb-3" id="connections-group" style="display:none;">
+        <label for="connections" class="form-label">Connections (comma separated, e.g. 5,2,3):</label>
+        <input type="text" class="form-control" id="connections" name="connections" placeholder="e.g. 5,2,3" />
+    </div>
+    <div class="mb-3" id="key-group" style="display:none;">
+        <label for="key" class="form-label">Key (for hashing, e.g. client IP or URL):</label>
+        <input type="text" class="form-control" id="key" name="key" placeholder="e.g. 192.168.1.1 or /api/data" />
+    </div>
+    <button type="submit" class="btn btn-success">Simulate Request</button>
+</form>
+
+<div class="result" th:if="${selectedServer}">
+    Selected Server: <b th:text="${selectedServer}"></b>
+</div>
+
+<!-- Animation and tooltip JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Enable Bootstrap tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+        new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    // Flash animation for selected server pill
+    document.querySelectorAll('.flash').forEach(function(el) {
+        el.classList.remove('flash');
+        void el.offsetWidth; // trigger reflow
+        el.classList.add('flash');
+    });
+</script>
+
+</body>
+</html> 
