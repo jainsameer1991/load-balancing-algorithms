@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Load Balancing Algorithms</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; }
+        .form-group { margin-bottom: 1em; }
+        label { display: block; margin-bottom: 0.5em; }
+        input, select { padding: 0.5em; width: 300px; }
+        .result { margin-top: 2em; font-size: 1.2em; color: #2a7a2a; }
+    </style>
+    <script>
+        function updateFields() {
+            var strategy = document.getElementById('strategy').value;
+            document.getElementById('weights-group').style.display = strategy === 'WeightedRoundRobin' ? 'block' : 'none';
+            document.getElementById('connections-group').style.display = strategy === 'LeastConnections' ? 'block' : 'none';
+            document.getElementById('key-group').style.display = (strategy === 'Hashing' || strategy === 'ConsistentHashing' || strategy === 'MaglevHashing') ? 'block' : 'none';
+        }
+        window.onload = updateFields;
+    </script>
+</head>
+<body>
+<h1>Load Balancing Algorithms Demo</h1>
+<form th:action="@{/set-strategy}" method="post" style="margin-bottom:2em;">
+    <div class="form-group">
+        <label for="strategy">Select Algorithm:</label>
+        <select id="strategy" name="strategy" onchange="this.form.submit(); updateFields();" th:value="${currentStrategy}">
+            <option th:each="s : ${strategies}" th:value="${s}" th:text="${s}" th:selected="${s == currentStrategy}"></option>
+        </select>
+    </div>
+</form>
+<form th:action="@{/select-server}" method="post">
+    <div class="form-group">
+        <label for="servers">Servers (comma separated):</label>
+        <input type="text" id="servers" name="servers" required placeholder="e.g. server1, server2, server3" />
+    </div>
+    <div class="form-group" id="weights-group" style="display:none;">
+        <label for="weights">Weights (comma separated, e.g. 2,1,3):</label>
+        <input type="text" id="weights" name="weights" placeholder="e.g. 2,1,3" />
+    </div>
+    <div class="form-group" id="connections-group" style="display:none;">
+        <label for="connections">Connections (comma separated, e.g. 5,2,3):</label>
+        <input type="text" id="connections" name="connections" placeholder="e.g. 5,2,3" />
+    </div>
+    <div class="form-group" id="key-group" style="display:none;">
+        <label for="key">Key (for hashing, e.g. client IP or URL):</label>
+        <input type="text" id="key" name="key" placeholder="e.g. 192.168.1.1 or /api/data" />
+    </div>
+    <button type="submit">Select Server</button>
+</form>
+<div class="result" th:if="${selectedServer}">
+    Selected Server: <b th:text="${selectedServer}"></b>
+</div>
+</body>
+</html> 
