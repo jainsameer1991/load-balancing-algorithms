@@ -53,7 +53,4 @@ This project demonstrates several classic and modern load balancing algorithms, 
 ## Project Structure
 - `src/` - Java source code and Thymeleaf templates
 - `pom.xml` - Maven build file
-- `README.md` - Project documentation
-
-## License
-MIT 
+- `README.md` - Project documentation 
